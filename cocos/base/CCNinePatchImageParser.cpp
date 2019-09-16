@@ -1,6 +1,5 @@
 /****************************************************************************
  Copyright (c) 2013-2016 Chukong Technologies Inc.
- Copyright (c) 2017-2018 Xiamen Yaji Software Co., Ltd.
 
  http://www.cocos2d-x.org
 
@@ -104,7 +103,7 @@ int NinePatchImageParser::getPixelOriginOffset(Direction direction)const
 
 Vec2 NinePatchImageParser::parseHorizontalMargin()const
 {
-    unsigned char* data = _image->getData();
+    const unsigned char* data = _image->getData();
     
     data = data + this->getPixelOriginOffset(Direction::HORIZONTAL);
     unsigned char lastPixel = *(data + 3);
@@ -134,7 +133,7 @@ Vec2 NinePatchImageParser::parseHorizontalMargin()const
 
 Vec2 NinePatchImageParser::parseVerticalMargin()const
 {
-    unsigned char* data = _image->getData();
+    const unsigned char* data = _image->getData();
     int imageWidth = _image->getWidth();
     
     int y1 = 0;

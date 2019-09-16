@@ -1,6 +1,5 @@
 /****************************************************************************
- Copyright (c) 2013-2016 Chukong Technologies Inc.
- Copyright (c) 2017-2018 Xiamen Yaji Software Co., Ltd.
+ Copyright (c) 2013 Chukong Technologies Inc.
  
  http://www.cocos2d-x.org
  
@@ -26,7 +25,7 @@
 #include "base/atitc.h"
 
 //Decode ATITC encode block to 4x4 RGB32 pixels
-static void atitc_decode_block(uint8_t **blockData,
+static void atitc_decode_block(const uint8_t **blockData,
                               uint32_t *decodeBlockData,
                               unsigned int stride,
                               bool oneBitAlphaFlag,
@@ -151,7 +150,7 @@ static void atitc_decode_block(uint8_t **blockData,
 }
 
 //Decode ATITC encode data to RGB32
-void atitc_decode(uint8_t *encodeData,             //in_data
+void atitc_decode(const uint8_t *encodeData,             //in_data
                  uint8_t *decodeData,              //out_data
                  const int pixelsWidth,
                  const int pixelsHeight,

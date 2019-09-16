@@ -1,6 +1,5 @@
 /****************************************************************************
  Copyright (c) 2013-2016 Chukong Technologies Inc.
- Copyright (c) 2017-2018 Xiamen Yaji Software Co., Ltd.
  
  http://www.cocos2d-x.org
  
@@ -37,7 +36,7 @@ enum class ATITCDecodeFlag
 };
 
 //Decode ATITC encode data to RGB32
-void atitc_decode(uint8_t *encode_data,
+void atitc_decode(const uint8_t *encode_data,
                   uint8_t *decode_data,
                   const int pixelsWidth,
                   const int pixelsHeight,

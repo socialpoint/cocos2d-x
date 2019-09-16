@@ -2,7 +2,6 @@
 Copyright (c) 2008      Apple Inc. All Rights Reserved.
 Copyright (c) 2010-2012 cocos2d-x.org
 Copyright (c) 2013-2016 Chukong Technologies Inc.
-Copyright (c) 2017-2018 Xiamen Yaji Software Co., Ltd.
 
 http://www.cocos2d-x.org
 
@@ -41,7 +40,7 @@ NS_CC_BEGIN
 class Image;
 class NinePatchInfo;
 class SpriteFrame;
-typedef struct _MipmapInfo MipmapInfo;
+struct MipmapInfo;
 
 namespace ui
 {
@@ -211,7 +210,7 @@ public:
      * @lua NA
      */
     virtual std::string getDescription() const;
-
+    
     /** Release only the gl texture.
      * @js NA
      * @lua NA
@@ -239,7 +238,7 @@ public:
      @param pixelsWide The image width.
      @param pixelsHigh The image height.
      */
-    bool initWithMipmaps(MipmapInfo* mipmaps, int mipmapsNum, Texture2D::PixelFormat pixelFormat, int pixelsWide, int pixelsHigh);
+    bool initWithMipmaps(const MipmapInfo* mipmaps, int mipmapsNum, Texture2D::PixelFormat pixelFormat, int pixelsWide, int pixelsHigh);
 
     /** Update with texture data.
      
@@ -255,9 +254,9 @@ public:
     These functions require GL_TEXTURE_2D and both GL_VERTEX_ARRAY and GL_TEXTURE_COORD_ARRAY client states to be enabled.
     */
     /** Draws a texture at a given point. */
-    void drawAtPoint(const Vec2& point);
+    void drawAtPoint(const Vec2& point, const Mat4& modelView);
     /** Draws a texture inside a rect.*/
-    void drawInRect(const Rect& rect);
+    void drawInRect(const Rect& rect, const Mat4& modelView);
 
     /**
     Extensions to make it easy to create a Texture2D object from an image file.
@@ -269,7 +268,7 @@ public:
     NOTE: It will not convert the pvr image file.
     @param image An UIImage object.
     */
-    bool initWithImage(Image * image);
+    bool initWithImage(const Image * image);
     
     /** 
     Initializes a texture from a UIImage object.
@@ -279,7 +278,7 @@ public:
     @param image An UIImage object.
     @param format Texture pixel formats.
     **/
-    bool initWithImage(Image * image, PixelFormat format);
+    bool initWithImage(const Image * image, PixelFormat format);
 
     /** Initializes a texture from a string with dimensions, alignment, font name and font size. 
      
@@ -412,9 +411,12 @@ public:
     std::string getPath()const { return _filePath; }
 
     void setAlphaTexture(Texture2D* alphaTexture);
-    Texture2D* getAlphaTexture() const;
 
     GLuint getAlphaTextureName() const;
+    Texture2D* getAlphaTexture() const;
+
+    bool useETC1Shaders() const;
+
 public:
     /** Get pixel info map, the key-value pairs is PixelFormat and PixelFormatInfo.*/
     static const PixelFormatInfoMap& getPixelFormatInfoMap();

@@ -3,7 +3,6 @@ Copyright (c) 2008-2010 Ricardo Quesada
 Copyright (c) 2010-2012 cocos2d-x.org
 Copyright (c) 2011      Zynga Inc.
 Copyright (c) 2013-2016 Chukong Technologies Inc.
-Copyright (c) 2017-2018 Xiamen Yaji Software Co., Ltd.
 
 http://www.cocos2d-x.org
 
@@ -36,7 +35,7 @@ THE SOFTWARE.
 #include <string>
 #include <unordered_map>
 #include <functional>
-
+#include <set>
 #include "base/CCRef.h"
 #include "renderer/CCTexture2D.h"
 #include "platform/CCImage.h"
@@ -52,7 +51,7 @@ NS_CC_BEGIN
  * @{
  */
 /*
-* From version 3.0, TextureCache will never be treated as a singleton, it will be owned by director.
+* From version 3.0, TextureCache will never to treated as a singleton, it will be owned by director.
 * All call by TextureCache::getInstance() should be replaced by Director::getInstance()->getTextureCache().
 */
 
@@ -63,6 +62,37 @@ NS_CC_BEGIN
 class CC_DLL TextureCache : public Ref
 {
 public:
+    struct AsyncStruct
+    {
+        static unsigned int _lastAsyncId;
+    public:
+        AsyncStruct(const std::string& fn, std::function<void(Texture2D*)> f) : filename(fn), callback(f),seqId(_lastAsyncId++), pixelFormat(Texture2D::getDefaultAlphaPixelFormat()), loadSuccess(false) {}
+
+        std::string filename;
+        std::function<void(Texture2D*)> callback;
+        unsigned int seqId;
+        Image image;
+        Image imageAlpha;
+        Texture2D::PixelFormat pixelFormat;
+        bool loadSuccess;
+    };
+    struct AsyncHandler
+    {
+        friend class TextureCache;
+        AsyncHandler():AsyncHandler(nullptr,0){}
+        void reset() { AsyncHandler{};}
+        bool check(const AsyncStruct* ptr) { return ptr && ptr == ptrId && ptr->seqId == seqId; }
+        operator bool() const { return ptrId != nullptr; }
+    private:
+        AsyncHandler(const AsyncStruct* ptr,unsigned int seq):ptrId(ptr),seqId(seq){}
+        const AsyncStruct* ptrId;
+        unsigned int seqId;
+    };
+
+    typedef std::function<void(const std::string&)> StringCallback;
+    static const std::string _kDefaultTextureName;
+    static GLuint _defaultTextureName;
+    
     /** Returns the shared instance of the cache. */
     CC_DEPRECATED_ATTRIBUTE static TextureCache * getInstance();
 
@@ -85,7 +115,6 @@ public:
 
     // ETC1 ALPHA supports.
     static void setETC1AlphaFileSuffix(const std::string& suffix);
-    static std::string getETC1AlphaFileSuffix();
 
 public:
     /**
@@ -105,12 +134,17 @@ public:
 
     // Dictionary* snapshotTextures();
 
+    /** Returns true on success
+     * Adds a loaded texture and holds it identified by identifier
+     */
+    bool addTexture(const std::string &identifier, Texture2D* tex);
+
     /** Returns a Texture2D object given an filename.
     * If the filename was not previously loaded, it will create a new Texture2D.
     * Object and it will return it. It will use the filename as a key.
     * Otherwise it will return a reference of a previously loaded image.
     * Supported image extensions: .png, .bmp, .tiff, .jpeg, .pvr.
-     @param filepath The file path.
+     @param filepath A null terminated string.
     */
     Texture2D* addImage(const std::string &filepath);
 
@@ -119,21 +153,19 @@ public:
     * Otherwise it will load a texture in a new thread, and when the image is loaded, the callback will be called with the Texture2D as a parameter.
     * The callback will be called from the main thread, so it is safe to create any cocos2d object from the callback.
     * Supported image extensions: .png, .jpg
-     @param filepath The file path.
+     @param filepath A null terminated string.
      @param callback A callback function would be invoked after the image is loaded.
      @since v0.8
     */
-    virtual void addImageAsync(const std::string &filepath, const std::function<void(Texture2D*)>& callback);
+    virtual AsyncHandler addImageAsync(const std::string &filepath, const std::function<void(Texture2D*)>& callback);
     
-    void addImageAsync(const std::string &path, const std::function<void(Texture2D*)>& callback, const std::string& callbackKey );
-
     /** Unbind a specified bound image asynchronous callback.
      * In the case an object who was bound to an image asynchronous callback was destroyed before the callback is invoked,
      * the object always need to unbind this callback manually.
      * @param filename It's the related/absolute path of the file image.
      * @since v3.1
      */
-    virtual void unbindImageAsync(const std::string &filename);
+    virtual void unbindImageAsync(AsyncHandler handler);
     
     /** Unbind all bound image asynchronous load callbacks.
      * @since v3.1
@@ -194,7 +226,7 @@ public:
     *
     * @since v1.0
     */
-    std::string getCachedTextureInfo() const;
+    std::string getCachedTextureInfo(std::function<bool (const std::string&)> filter = nullptr) const;
 
     //Wait for texture cache to quit before destroy instance.
     /**Called by director, please do not called outside.*/
@@ -219,15 +251,47 @@ public:
     */
     void renameTextureWithKey(const std::string& srcName, const std::string& dstName);
 
+    void getDefaultTextureData(const unsigned char** datapointer, unsigned int* length);
+
+    void setDefaultAssetCallback(const StringCallback& callback);
+
+    bool isDefaultTexture(const std::string& filename);
+
+    void createDefaultTexture();
+
+    unsigned long getTotalBytes() const;
+    unsigned long getTextureBits(Texture2D* tex) const;
+
+    /**
+     *  Prints in console the name of all the current textures in cache
+     */
+    void debug_showCurrentTexturesLog();
+
+    /**
+     *  Clean unused textures from cache. Prints possible memory leaks
+     *  (the ones that couldn't be removed because count > 1)
+     */
+    void debug_checkLeaks();
+
+    /**
+     *  Saves in a set the current textures in cache to ignore them in
+     *  'debug_cleanUnusedTextures'. Useful if you want to save the current state of the
+     *  cache, and compare it later on with the state after entering a view
+     */
+    void debug_ignoreCurrentTextures();
+
+    void debug_printContent();
 
 private:
     void addImageAsyncCallBack(float dt);
     void loadImage();
     void parseNinePatchImage(Image* image, Texture2D* texture, const std::string& path);
-public:
-protected:
-    struct AsyncStruct;
     
+    StringCallback _defaultAssetCallback;
+    
+protected:
+    using TextureMapPair = std::pair<std::string, Texture2D*>;
+
     std::thread* _loadingThread;
 
     std::deque<AsyncStruct*> _asyncStructQueue;
@@ -244,6 +308,9 @@ protected:
     int _asyncRefCount;
 
     std::unordered_map<std::string, Texture2D*> _textures;
+
+    std::set<std::string> _debugLeakedTextures;
+    std::set<std::string> _debugIgnoreTextures;
 
     static std::string s_etc1AlphaFileSuffix;
 };
@@ -308,7 +375,6 @@ private:
     // find VolatileTexture by Texture2D*
     // if not found, create a new one
     static VolatileTexture* findVolotileTexture(Texture2D *tt);
-    static void reloadTexture(Texture2D* texture, const std::string& filename, Texture2D::PixelFormat pixelFormat);
 };
 
 #endif

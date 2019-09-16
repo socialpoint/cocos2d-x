@@ -1,6 +1,5 @@
 /****************************************************************************
- Copyright (c) 2013-2017 Chukong Technologies
- Copyright (c) 2017-2018 Xiamen Yaji Software Co., Ltd.
+ Copyright (c) 2013-2015 Chukong Technologies
  
  http://www.cocos2d-x.org
  
@@ -37,7 +36,7 @@ enum class S3TCDecodeFlag
 };
 
 //Decode S3TC encode data to RGB32
- void s3tc_decode(uint8_t *encode_data,
+ void s3tc_decode(const uint8_t *encode_data,
                  uint8_t *decode_data,
                  const int pixelsWidth,
                  const int pixelsHeight,

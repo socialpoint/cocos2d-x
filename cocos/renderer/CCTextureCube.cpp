@@ -1,6 +1,5 @@
 /****************************************************************************
- Copyright (c) 2015-2016 Chukong Technologies Inc.
- Copyright (c) 2017-2018 Xiamen Yaji Software Co., Ltd.
+ Copyright (c) 2015 Chukong Technologies Inc.
  
  http://www.cocos2d-x.org
  
@@ -31,7 +30,7 @@
 
 NS_CC_BEGIN
 
-unsigned char* getImageData(Image* img, Texture2D::PixelFormat&  ePixFmt)
+const unsigned char* getImageData(Image* img, Texture2D::PixelFormat&  ePixFmt)
 {
     unsigned char*    pTmpData = img->getData();
     unsigned int*     inPixel32 = nullptr;
@@ -127,7 +126,7 @@ Image* createImage(const std::string& path)
     // Needed since addImageAsync calls this method from a different thread
 
     std::string fullpath = FileUtils::getInstance()->fullPathForFilename(path);
-    if (fullpath.empty())
+    if (fullpath.size() == 0)
     {
         return nullptr;
     }
@@ -200,7 +199,7 @@ bool TextureCube::init(const std::string& positive_x, const std::string& negativ
         Image* img = images[i];
 
         Texture2D::PixelFormat  ePixelFmt;
-        unsigned char*          pData = getImageData(img, ePixelFmt);
+        const unsigned char*    pData = getImageData(img, ePixelFmt);
         if (ePixelFmt == Texture2D::PixelFormat::RGBA8888 || ePixelFmt == Texture2D::PixelFormat::DEFAULT)
         {
             glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i,

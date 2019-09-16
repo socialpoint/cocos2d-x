@@ -2,7 +2,6 @@
 Copyright (c) 2008      Apple Inc. All Rights Reserved.
 Copyright (c) 2010-2012 cocos2d-x.org
 Copyright (c) 2013-2016 Chukong Technologies Inc.
-Copyright (c) 2017-2018 Xiamen Yaji Software Co., Ltd.
 
 http://www.cocos2d-x.org
 
@@ -503,6 +502,23 @@ GLuint Texture2D::getAlphaTextureName() const
     return _alphaTexture == nullptr ? 0 : _alphaTexture->getName();
 }
 
+Texture2D* Texture2D::getAlphaTexture() const
+{
+    return _alphaTexture;
+}
+
+bool Texture2D::useETC1Shaders() const
+{
+    if(GLProgram::isAlphaInRGBForETC1())
+    {
+        return getPixelFormat() == Texture2D::PixelFormat::ETC;
+    }
+    else
+    {
+        return getAlphaTextureName() != 0;
+    }
+}
+
 Size Texture2D::getContentSize() const
 {
     Size ret;
@@ -565,7 +581,7 @@ bool Texture2D::initWithData(const void *data, ssize_t dataLen, Texture2D::Pixel
     return initWithMipmaps(&mipmap, 1, pixelFormat, pixelsWide, pixelsHigh);
 }
 
-bool Texture2D::initWithMipmaps(MipmapInfo* mipmaps, int mipmapsNum, PixelFormat pixelFormat, int pixelsWide, int pixelsHigh)
+bool Texture2D::initWithMipmaps(const MipmapInfo* mipmaps, int mipmapsNum, PixelFormat pixelFormat, int pixelsWide, int pixelsHigh)
 {
 
 
@@ -580,14 +596,13 @@ bool Texture2D::initWithMipmaps(MipmapInfo* mipmaps, int mipmapsNum, PixelFormat
     }
     
 
-    auto formatItr = _pixelFormatInfoTables.find(pixelFormat);
-    if(formatItr == _pixelFormatInfoTables.end())
+    if(_pixelFormatInfoTables.find(pixelFormat) == _pixelFormatInfoTables.end())
     {
         CCLOG("cocos2d: WARNING: unsupported pixelformat: %lx", (unsigned long)pixelFormat );
         return false;
     }
 
-    const PixelFormatInfo& info = formatItr->second;
+    const PixelFormatInfo& info = _pixelFormatInfoTables.at(pixelFormat);
 
     if (info.compressed && !Configuration::getInstance()->supportsPVRTC()
                         && !Configuration::getInstance()->supportsETC()
@@ -601,7 +616,7 @@ bool Texture2D::initWithMipmaps(MipmapInfo* mipmaps, int mipmapsNum, PixelFormat
     //Set the row align only when mipmapsNum == 1 and the data is uncompressed
     if (mipmapsNum == 1 && !info.compressed)
     {
-        unsigned int bytesPerRow = pixelsWide * info.bpp / 8;
+        const unsigned int bytesPerRow = pixelsWide * info.bpp / 8;
 
         if(bytesPerRow % 8 == 0)
         {
@@ -671,8 +686,8 @@ bool Texture2D::initWithMipmaps(MipmapInfo* mipmaps, int mipmapsNum, PixelFormat
     
     for (int i = 0; i < mipmapsNum; ++i)
     {
-        unsigned char *data = mipmaps[i].address;
-        GLsizei datalen = mipmaps[i].len;
+        const unsigned char *data = mipmaps[i].address;
+        const GLsizei datalen = mipmaps[i].len;
 
         if (info.compressed)
         {
@@ -733,21 +748,27 @@ std::string Texture2D::getDescription() const
 }
 
 // implementation Texture2D (Image)
-bool Texture2D::initWithImage(Image *image)
+bool Texture2D::initWithImage(const Image *image)
 {
     return initWithImage(image, g_defaultAlphaPixelFormat);
 }
 
-bool Texture2D::initWithImage(Image *image, PixelFormat format)
+bool Texture2D::initWithImage(const Image *image, PixelFormat format)
 {
     if (image == nullptr)
     {
         CCLOG("cocos2d: Texture2D. Can't create Texture. UIImage is nil");
         return false;
     }
+    
+    if ( image->getAlphaImage() && image->getAlphaImage()->getRenderFormat() != Texture2D::PixelFormat::NONE )
+    {
+        _alphaTexture = new Texture2D();
+        _alphaTexture->initWithImage(image->getAlphaImage(), format);
+    }
 
-    int imageWidth = image->getWidth();
-    int imageHeight = image->getHeight();
+    const int imageWidth = image->getWidth();
+    const int imageHeight = image->getHeight();
     this->_filePath = image->getFilePath();
     Configuration *conf = Configuration::getInstance();
 
@@ -758,11 +779,11 @@ bool Texture2D::initWithImage(Image *image, PixelFormat format)
         return false;
     }
 
-    unsigned char*   tempData = image->getData();
-    Size             imageSize = Size((float)imageWidth, (float)imageHeight);
-    PixelFormat      pixelFormat = ((PixelFormat::NONE == format) || (PixelFormat::AUTO == format)) ? image->getRenderFormat() : format;
-    PixelFormat      renderFormat = image->getRenderFormat();
-    size_t           tempDataLen = image->getDataLen();
+    const unsigned char* const tempData = image->getData();
+    const Size imageSize = Size((float)imageWidth, (float)imageHeight);
+    PixelFormat pixelFormat = ((PixelFormat::NONE == format) || (PixelFormat::AUTO == format)) ? image->getRenderFormat() : format;
+    const PixelFormat renderFormat = image->getRenderFormat();
+    const size_t tempDataLen = image->getDataLen();
 
 
     if (image->getNumberOfMipmaps() > 1)
@@ -1143,7 +1164,6 @@ bool Texture2D::initWithString(const char *text, const FontDefinition& textDefin
     auto textDef = textDefinition;
     auto contentScaleFactor = CC_CONTENT_SCALE_FACTOR();
     textDef._fontSize *= contentScaleFactor;
-    textDef._lineSpacing *= contentScaleFactor;
     textDef._dimensions.width *= contentScaleFactor;
     textDef._dimensions.height *= contentScaleFactor;
     textDef._stroke._strokeSize *= contentScaleFactor;
@@ -1173,7 +1193,7 @@ bool Texture2D::initWithString(const char *text, const FontDefinition& textDefin
 
 // implementation Texture2D (Drawing)
 
-void Texture2D::drawAtPoint(const Vec2& point)
+void Texture2D::drawAtPoint(const Vec2& point, const Mat4& modelView)
 {
     GLfloat    coordinates[] = {
         0.0f,    _maxT,
@@ -1185,44 +1205,74 @@ void Texture2D::drawAtPoint(const Vec2& point)
         height = (GLfloat)_pixelsHigh * _maxT;
 
     GLfloat        vertices[] = {    
-        point.x,            point.y,
-        width + point.x,    point.y,
-        point.x,            height  + point.y,
-        width + point.x,    height  + point.y };
+        point.x,            point.y, 0.0f,
+        width + point.x,    point.y, 0.0f,
+        point.x,            height  + point.y, 0.0f,
+        width + point.x,    height  + point.y, 0.0f };
+
+#if defined(USE_MATRIX_STACK_PROJECTION_ONLY)
+    for(unsigned int i = 0; i < 4; ++i) {
+        Vec3 v(vertices[i*3], vertices[i*3+1], vertices[i*3+2]);
+        modelView.transformPoint(&v);
+        vertices[i*3] = v.x;
+        vertices[i*3+1] = v.y;
+        vertices[i*3+2] = v.z;
+    }
+#endif
 
     GL::enableVertexAttribs( GL::VERTEX_ATTRIB_FLAG_POSITION | GL::VERTEX_ATTRIB_FLAG_TEX_COORD );
     _shaderProgram->use();
+
+#if defined(USE_MATRIX_STACK_PROJECTION_ONLY)
+    _shaderProgram->setUniformsForBuiltins(Mat4::IDENTITY);
+#else
     _shaderProgram->setUniformsForBuiltins();
+#endif
 
     GL::bindTexture2D( _name );
 
 
-    glVertexAttribPointer(GLProgram::VERTEX_ATTRIB_POSITION, 2, GL_FLOAT, GL_FALSE, 0, vertices);
+    glVertexAttribPointer(GLProgram::VERTEX_ATTRIB_POSITION, 3, GL_FLOAT, GL_FALSE, 0, vertices);
     glVertexAttribPointer(GLProgram::VERTEX_ATTRIB_TEX_COORD, 2, GL_FLOAT, GL_FALSE, 0, coordinates);
 
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 }
 
-void Texture2D::drawInRect(const Rect& rect)
+void Texture2D::drawInRect(const Rect& rect, const Mat4& modelView)
 {
-    GLfloat    coordinates[] = {    
+    GLfloat    coordinates[] = {
         0.0f,    _maxT,
         _maxS,_maxT,
         0.0f,    0.0f,
         _maxS,0.0f };
 
-    GLfloat    vertices[] = {    rect.origin.x,        rect.origin.y,                            /*0.0f,*/
-        rect.origin.x + rect.size.width,        rect.origin.y,                            /*0.0f,*/
-        rect.origin.x,                            rect.origin.y + rect.size.height,        /*0.0f,*/
-        rect.origin.x + rect.size.width,        rect.origin.y + rect.size.height,        /*0.0f*/ };
+    GLfloat    vertices[] = {    rect.origin.x,        rect.origin.y,                            0.0f,
+        rect.origin.x + rect.size.width,        rect.origin.y,                            0.0f,
+        rect.origin.x,                            rect.origin.y + rect.size.height,        0.0f,
+        rect.origin.x + rect.size.width,        rect.origin.y + rect.size.height,        0.0f };
+
+#if defined(USE_MATRIX_STACK_PROJECTION_ONLY)
+    for(unsigned int i = 0; i < 4; ++i) {
+        Vec3 v(vertices[i*3], vertices[i*3+1], vertices[i*3+2]);
+        modelView.transformPoint(&v);
+        vertices[i*3] = v.x;
+        vertices[i*3+1] = v.y;
+        vertices[i*3+2] = v.z;
+    }
+#endif
 
     GL::enableVertexAttribs( GL::VERTEX_ATTRIB_FLAG_POSITION | GL::VERTEX_ATTRIB_FLAG_TEX_COORD );
     _shaderProgram->use();
+
+#if defined(USE_MATRIX_STACK_PROJECTION_ONLY)
+    _shaderProgram->setUniformsForBuiltins(Mat4::IDENTITY);
+#else
     _shaderProgram->setUniformsForBuiltins();
+#endif
 
     GL::bindTexture2D( _name );
 
-    glVertexAttribPointer(GLProgram::VERTEX_ATTRIB_POSITION, 2, GL_FLOAT, GL_FALSE, 0, vertices);
+    glVertexAttribPointer(GLProgram::VERTEX_ATTRIB_POSITION, 3, GL_FLOAT, GL_FALSE, 0, vertices);
     glVertexAttribPointer(GLProgram::VERTEX_ATTRIB_TEX_COORD, 2, GL_FLOAT, GL_FALSE, 0, coordinates);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 }
@@ -1499,17 +1549,10 @@ void Texture2D::removeSpriteFrameCapInset(SpriteFrame* spriteFrame)
 /// halx99 spec, ANDROID ETC1 ALPHA supports.
 void Texture2D::setAlphaTexture(Texture2D* alphaTexture)
 {
-    if (alphaTexture != nullptr)
-    {
-        alphaTexture->retain();
-        CC_SAFE_RELEASE(_alphaTexture);
-        _alphaTexture = alphaTexture;
-        _hasPremultipliedAlpha = true; // PremultipliedAlpha should be true.
+    if (alphaTexture != nullptr) {
+        this->_alphaTexture = alphaTexture;
+        this->_alphaTexture->retain();
+        this->_hasPremultipliedAlpha = true; // PremultipliedAlpha should be true.
     }
-}
-
-Texture2D* Texture2D::getAlphaTexture() const
-{
-    return _alphaTexture;
 }
 NS_CC_END
